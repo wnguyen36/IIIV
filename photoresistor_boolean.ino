@@ -1,10 +1,4 @@
 /*
-  Note:
-  This program is specifically designed for our prototypical IV bag/system. For a
-  theoretically more accurate model, refer to the branch iv-3-type-output.
-*/
-
-/*
   Updated: 2-21-2026 Time: 10:28pm
   IV Bag Occlusion + Leak Detection & Classification (Arduino UNO + LCD1602 Parallel)
   -------------------------------------------------------------------------------
@@ -64,18 +58,6 @@
     has remained the same for sTime seconds. The candidate is refreshed on
     every new window, but the stability gate is checked on every sample tick
     so that sTime is honoured precisely.
-
-  FIXES APPLIED (this revision):
-    A. Stability timer now works as documented: lastCandidate is updated on
-       each new window, but updateCommittedStatus() is called on every tick
-       so the 1-second gate is evaluated continuously, not once per 5s window.
-    B. LCD line 2 label corrected: "Rt" (rate) instead of "dL" (delta).
-       The value shown is levelRateUPM (ADC units/min), not levelDelta.
-    C. waterAbsent is now used directly in classifyCandidate() for the
-       absent vs. grey distinction. Grey zone still maps to OCCLUSION/LEAK,
-       but the logic now reflects the actual flag rather than just !waterPresent.
-    D. Serial debug output is gated to print only when a new window closes,
-       eliminating 99 identical stale lines per window.
 */
 
 #include <Arduino.h>
