@@ -76,7 +76,7 @@ Classified state changes stream to a React dashboard that aggregates patient tel
 | Firmware | Arduino, C++ |
 | Sensors | Photoresistor, SL067 water-level sensor |
 | Frontend | React |
-| Hardware | Arduino UNO R3, breadboard, buzzer, LED, [VALUE]Ω resistor, potentiometer |
+| Hardware | Arduino Uno R3, 16x2 LCD, 10kΩ potentiometer, 10Ω & 220Ω resistors, breadboard, jumper wires, USB-B cable|
 
 **Firmware notes:**
 - `iiiv_classifier.ino` is the production-intent build — analyzes drip rate against fluid level for use with medical-grade IV bags.
@@ -85,7 +85,7 @@ Classified state changes stream to a React dashboard that aggregates patient tel
 ## Setup
 
 1. Clone the repo and open the desired `.ino` file in the Arduino IDE.
-2. Wire components per (insert wiring diagram hyperlink here).
+2. Wire components per [wiring diagram](iiiv_wiring.png).
 3. Select your board and port, then upload.
 4. Start the dashboard: `cd dashboard && npm install && npm run dev`
 
