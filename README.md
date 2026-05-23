@@ -11,7 +11,7 @@
 ---
 
 ![IIIV prototype on IV bag](iiiv_demo_pic.png)
-![Nursing dashboard](iiiv_dashboard.gif)
+![Nursing dashboard](dashboard.png)
 
 ---
 
