@@ -1,70 +1,18 @@
 /*
-  Updated: 2-21-2026 Time: 10:28pm
-  IV Bag Occlusion + Leak Detection & Classification (Arduino UNO + LCD1602 Parallel)
-  -------------------------------------------------------------------------------
-
-  LCD1602 (PARALLEL) WIRING (4-bit mode):
-    LCD Pin  Name   -> Arduino UNO
-    1        VSS    -> GND
-    2        VDD    -> 5V
-    3        VO     -> Contrast pot wiper (pot ends to 5V and GND)
-    4        RS     -> D12
-    5        RW     -> GND
-    6        E      -> D11
-    11       D4     -> D5
-    12       D5     -> D4
-    13       D6     -> D3
-    14       D7     -> D2
-    15       A      -> 5V through ~220Ohm (backlight +)
-    16       K      -> GND (backlight -)
-
-  SENSORS / VARIABLES MEASURED:
-    - Photoresistor on tubing (PIN_PHOTO = A0):
-        photoRaw (ADC 0..1023) and a tracked photoBaseline.
-        Water presence uses directional hysteresis against photoBaseline.
-        PHOTO_WATER_MAKES_DARKER = true  -> water lowers the ADC reading
-        PHOTO_WATER_MAKES_DARKER = false -> water raises the ADC reading
-    - Water level sensor in IV bag (PIN_LEVEL = A1):
-        levelRaw (ADC 0..1023) is low-pass filtered into levelFiltered.
-
-  DERIVED METRICS (computed every WINDOW_MS):
-    - photoPresentSamplesInWindow : samples in window where water was present
-    - photoSamplesInWindow        : total photo samples counted in window
-    - photoPresentFrac            : ratio of the two above
-    - waterPresent                : true if photoPresentFrac >= PHOTO_PRESENT_FRAC_THRESHOLD
-    - waterAbsent                 : true if photoPresentFrac <= PHOTO_ABSENT_FRAC_THRESHOLD
-      NOTE: if neither flag is set, photoPresentFrac is in the "grey zone" between the two
-            thresholds, which is treated as an ambiguous / partial-flow condition.
-    - levelDelta                  : levelFiltered(now) - levelFiltered(windowStart)
-    - levelRateUPM                : ADC units / minute
-
-  CLASSIFICATION LOGIC (candidate recomputed every window; stability gate runs every tick):
-    Let:
-      levelDecreasing := levelDelta   <= -LEVEL_DECREASING_DROP_EPS
-                      OR levelRateUPM <= -LEVEL_DECREASING_RATE_EPS
-
-    +------------------+------------------+-------------------------------+
-    | levelDecreasing  | water state      | Classification                |
-    +------------------+------------------+-------------------------------+
-    | true             | present          | NORMAL_FLOW                   |
-    | true             | grey / absent    | LEAK                          |
-    | false            | absent           | OCCLUSION (immediate)         |
-    | false            | grey             | OCCLUSION (immediate)         |
-    | false            | present          | OCCLUSION (timer-gated 10 s)  |
-    +------------------+------------------+-------------------------------+
-
-  STABILITY REQUIREMENT (sTime):
-    The LCD only updates to a new classification after the candidate state
-    has remained the same for sTime seconds. The candidate is refreshed on
-    every new window, but the stability gate is checked on every sample tick
-    so that sTime is honoured precisely.
-*/
+ * IIIV — Boolean Water-Presence Classifier (hackathon prototype)
+ *
+ * Simplified variant used to demo the system at MedTech Hackathon 2026 with
+ * Team Phlegm's handmade IV bag. Reads water presence as a boolean rather
+ * than measuring drip rate. Works in the prototype setup, would be less
+ * accurate against real medical-grade IV bags — kept here as a reference
+ * for the demo configuration.
+ */
 
 #include <Arduino.h>
 #include <LiquidCrystal.h>
 #include <math.h>
 
-// ---------- LCD1602 (Parallel) pins ----------
+// LCD1602 (Parallel) pins
 static const uint8_t LCD_RS = 12;
 static const uint8_t LCD_E  = 11;
 static const uint8_t LCD_D4 = 5;
@@ -74,21 +22,21 @@ static const uint8_t LCD_D7 = 2;
 
 LiquidCrystal lcd(LCD_RS, LCD_E, LCD_D4, LCD_D5, LCD_D6, LCD_D7);
 
-// ---------- Sensor pins ----------
+// Sensor pins
 static const uint8_t PIN_PHOTO = A0;
 static const uint8_t PIN_LEVEL = A1;
 
-// ---------- Timing ----------
+// Timing
 static const uint32_t SAMPLE_MS      = 50;
 static const uint32_t WINDOW_MS      = 5000;
 static const uint32_t DISPLAY_MS     = 400;
 static const uint32_t CALIBRATION_MS = 4 * WINDOW_MS;
 
-// ---------- Stability gate ----------
-static const uint32_t sTime          = 1;   // seconds -- gate is now checked every tick
+// Stability gate
+static const uint32_t sTime = 1;   
 static const uint32_t STABLE_TIME_MS = sTime * 1000UL;
 
-// ---------- Photoresistor water-presence tuning ----------
+// Photoresistor water-presence tuning
 static const bool     PHOTO_WATER_MAKES_DARKER  = true;
 static const int      PHOTO_WATER_PRESENT_DELTA  = 14;
 static const int      PHOTO_WATER_ABSENT_DELTA   = 6;
@@ -96,25 +44,24 @@ static const float    PHOTO_BASELINE_ALPHA        = 0.015f;
 static const uint8_t  PHOTO_MEDIAN_SAMPLES        = 5;   // must be odd
 static const float    PHOTO_FILTER_ALPHA          = 0.30f;
 
-// ---------- Water level filtering/tuning ----------
+// Water level filtering/tuning
 static const float    LEVEL_FILTER_ALPHA          = 0.07f;
 static const uint8_t  LEVEL_MEDIAN_SAMPLES         = 5;   // must be odd
 static const float    LEVEL_DECREASING_DROP_EPS   = 8.0f;   // ADC units drop per window
 static const float    LEVEL_DECREASING_RATE_EPS   = 60.0f;  // ADC units per minute
 
-// ---------- Photo fraction thresholds ----------
+// Photo fraction thresholds
 //   waterPresent : photoPresentFrac >= PHOTO_PRESENT_FRAC_THRESHOLD  (>= 25%)
 //   grey zone    : PHOTO_ABSENT_FRAC_THRESHOLD < frac < PHOTO_PRESENT_FRAC_THRESHOLD
 //   waterAbsent  : photoPresentFrac <= PHOTO_ABSENT_FRAC_THRESHOLD   (<=  8%)
-//
 // Grey zone is treated as waterAbsent for classification: partial/intermittent
 // flow is never silently labelled NORMAL_FLOW.
+
 static const float    PHOTO_PRESENT_FRAC_THRESHOLD = 0.25f;
 static const float    PHOTO_ABSENT_FRAC_THRESHOLD  = 0.08f;
-
 static const uint32_t FILLED_OCCLUSION_CONFIRM_MS = 2 * WINDOW_MS; // 10 s
 
-// ---------- Status ----------
+//Status
 enum class Status {
   CALIBRATING,
   NORMAL_FLOW,
@@ -132,7 +79,7 @@ struct Rates {
   uint32_t photoSamplesInWindow;
 };
 
-// ---------- State ----------
+//State
 static uint32_t lastSampleMs  = 0;
 static uint32_t lastDisplayMs = 0;
 
@@ -160,15 +107,12 @@ static uint32_t calibStartMs = 0;
 
 static uint32_t filledOcclusionStartMs = 0;
 
-// FIX A: lastCandidate stores the most recent window classification so
-// updateCommittedStatus() can be called on every tick to honour sTime precisely.
 static Status   lastCandidate    = Status::CALIBRATING;
-
 static Status   committedStatus  = Status::CALIBRATING;
 static Status   candidateStatus  = Status::CALIBRATING;
 static uint32_t candidateSinceMs = 0;
 
-// ---------- Helpers ----------
+// Helpers
 static const char* statusToText(Status s) {
   switch (s) {
     case Status::CALIBRATING: return "CALIBRATING";
@@ -191,8 +135,6 @@ static void lcdPrintPadded(const char* l1, const char* l2) {
   lcd.print(l2);
 }
 
-// FIX B: Label changed from "dL" (delta) to "Rt" (rate) to match the value shown.
-// The value is levelRateUPM (ADC units/min), not levelDelta.
 static void buildRatesLine(char out[17]) {
   long l = lroundf(currentRates.levelRateUPM);
   l = constrain(l, -9999L, 9999L);
@@ -200,7 +142,7 @@ static void buildRatesLine(char out[17]) {
            currentRates.waterPresent ? 'Y' : 'N', l);
 }
 
-// ---------- Photo reading (median + EMA) ----------
+// Photo reading (median + EMA)
 static int readDenoisedPhotoAnalog() {
   int samples[PHOTO_MEDIAN_SAMPLES];
   for (uint8_t i = 0; i < PHOTO_MEDIAN_SAMPLES; ++i) {
@@ -224,7 +166,7 @@ static int readDenoisedPhotoAnalog() {
   return (int)lroundf(photoFiltered);
 }
 
-// ---------- Level reading (median) ----------
+// Level reading (median)
 static int readMedianAnalog(uint8_t pin) {
   int samples[LEVEL_MEDIAN_SAMPLES];
   for (uint8_t i = 0; i < LEVEL_MEDIAN_SAMPLES; ++i) {
@@ -239,7 +181,7 @@ static int readMedianAnalog(uint8_t pin) {
   return samples[LEVEL_MEDIAN_SAMPLES / 2];
 }
 
-// ---------- Photo water-presence (directional hysteresis) ----------
+// Photo water-presence (directional hysteresis)
 static void updatePhotoPresenceState(int photoRaw) {
   if (!photoInit) {
     photoBaseline = (float)photoRaw;
@@ -262,7 +204,7 @@ static void updatePhotoPresenceState(int photoRaw) {
   }
 }
 
-// ---------- Window / rate computation ----------
+// Window / rate computation
 static void rollWindowAndCompute(uint32_t nowMs) {
   if (nowMs - windowStartMs >= WINDOW_MS) {
     const float minutes    = (float)(nowMs - windowStartMs) / 60000.0f;
@@ -291,18 +233,14 @@ static void rollWindowAndCompute(uint32_t nowMs) {
   }
 }
 
-// ---------- Calibration ----------
+// Calibration 
 static void updateCalibration(uint32_t nowMs) {
   if ((nowMs - calibStartMs) >= CALIBRATION_MS && haveRates) {
     warmupReady = true;
   }
 }
 
-// ---------- Classification (candidate) ----------
-// FIX C: waterAbsent is now used directly so the absent / grey distinction is
-// explicit in the code and matches the comments and struct documentation.
-// Grey zone (waterPresent=false, waterAbsent=false) still maps to the same
-// outcome as absent, but via an explicit branch rather than implicit fall-through.
+// Classification (candidate)
 static Status classifyCandidate(const Rates& r, uint32_t nowMs) {
   if (!warmupReady || !haveRates) {
     filledOcclusionStartMs = 0;
@@ -351,9 +289,7 @@ static Status classifyCandidate(const Rates& r, uint32_t nowMs) {
   return Status::NORMAL_FLOW;
 }
 
-// ---------- Stability gating ----------
-// FIX A: Called on every tick (not just on new windows) so sTime is honoured
-// with ~50ms resolution rather than being rounded up to the next 5s window.
+// Stability gating
 static void updateCommittedStatus(Status newCandidate, uint32_t nowMs) {
   if (newCandidate != candidateStatus) {
     candidateStatus  = newCandidate;
@@ -391,7 +327,7 @@ void setup() {
 void loop() {
   const uint32_t nowMs = millis();
 
-  // ---------- Sampling ----------
+  // Sampling
   if (nowMs - lastSampleMs >= SAMPLE_MS) {
     lastSampleMs = nowMs;
 
@@ -415,20 +351,14 @@ void loop() {
 
     if (!warmupReady) {
       updateCalibration(nowMs);
-      // During warmup the committed status is always CALIBRATING.
       updateCommittedStatus(Status::CALIBRATING, nowMs);
     } else {
-      // FIX A: Update lastCandidate only when a fresh window is ready.
-      // Then call updateCommittedStatus every tick so the 1-second gate
-      // is checked with full 50ms resolution.
       if (newWindowReady) {
         lastCandidate = classifyCandidate(currentRates, nowMs);
       }
       updateCommittedStatus(lastCandidate, nowMs);
     }
 
-    // FIX D: Serial debug prints only when a new window is ready, so each
-    // unique set of values appears exactly once instead of ~100 times.
     if (newWindowReady) {
       Serial.print("cand=");        Serial.print(statusToText(candidateStatus));
       Serial.print(" comm=");       Serial.print(statusToText(committedStatus));
@@ -442,7 +372,7 @@ void loop() {
     }
   }
 
-  // ---------- Display ----------
+  // Display
   if (nowMs - lastDisplayMs >= DISPLAY_MS) {
     lastDisplayMs = nowMs;
 
