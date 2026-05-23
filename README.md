@@ -6,7 +6,7 @@
 
 > The name **IIIV** is a play on "IV," with three I's for the three states the system detects.
 
-📊 **[Pitch Deck](./docs/IIIV-pitch-deck.pdf)** · 🎥 **[Demo Video](./docs/demo.mp4)**
+📊 **[Pitch Deck](iiiv_pitchdeck.pdf)** · 🎥 **[Demo Video](./docs/demo.mp4)**
 
 ---
 
@@ -113,4 +113,4 @@ Won 2nd place in the MedTech Hackathon's Clinical Application Track.
 - Marsh, N., et al. (2024). Peripheral intravenous catheter infection and failure: A systematic review and meta-analysis. *International Journal of Nursing Studies, 151*, 104673.
 - Sendelbach, S., & Funk, M. (2013). Alarm Fatigue. *AACN Advanced Critical Care, 24*(4), 378–386.
 
-Full reference list in the [pitch deck](./docs/IIIV-pitch-deck.pdf).
+Full reference list in the [pitch deck](iiiv_pitchdeck.pdf).
