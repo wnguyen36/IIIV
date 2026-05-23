@@ -10,7 +10,7 @@
 
 ---
 
-![IIIV prototype on IV bag](./docs/demo.gif)
+![IIIV prototype on IV bag](iiiv_demo_pic.png)
 ![Nursing dashboard](./docs/dashboard.png)
 
 ---
