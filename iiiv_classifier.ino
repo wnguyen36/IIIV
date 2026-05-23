@@ -1,69 +1,20 @@
 /*
-  Updated: 2-21-2026 6:33 PM
-  IV Bag Occlusion + Leak Detection & Classification (Arduino UNO + LCD1602 Parallel)
-  -------------------------------------------------------------------------------
-
-  LCD1602 (PARALLEL) WIRING (4-bit mode) - Example mapping used in this sketch:
-    LCD Pin  Name   -> Arduino UNO
-    1        VSS    -> GND
-    2        VDD    -> 5V
-    3        VO     -> Contrast pot wiper (pot ends to 5V and GND)
-    4        RS     -> D12
-    5        RW     -> GND
-    6        E      -> D11
-    11       D4     -> D5
-    12       D5     -> D4
-    13       D6     -> D3
-    14       D7     -> D2
-    15       A      -> 5V through ~220Ω (backlight +)  (some modules have resistor onboard)
-    16       K      -> GND (backlight -)
-
-  SENSORS / VARIABLES MEASURED:
-    - Photoresistor on tubing (PIN_PHOTO = A0):
-        photoRaw (ADC 0..1023) and a tracked photoBaseline
-        A "drop event" is counted when |photoRaw - photoBaseline| exceeds PHOTO_DROP_DELTA.
-        Drops are debounced with PHOTO_MIN_MS_BETWEEN_DROPS.
-    - Water level sensor in IV bag (PIN_LEVEL = A1):
-        levelRaw (ADC 0..1023) is low-pass filtered into levelFiltered.
-
-  DERIVED METRICS (computed every WINDOW_MS):
-    - dropsInWindow         : number of detected drops during the window
-    - dropRateDPM           : drops per minute
-    - levelDelta            : levelFiltered(now) - levelFiltered(windowStart)
-    - levelRateUPM          : "level units per minute" (ADC units/min)
-
-  BASELINE ("FUNCTIONING IV VALUES"):
-    - During startup CALIBRATION_MS, the sketch averages:
-        baselineDropRateDPM and baselineLevelRateUPM
-    - Baseline is accepted only if baselineDropRateDPM > NO_DROP_RATE_DPM (i.e., flow exists).
-
-  CLASSIFICATION LOGIC (candidate state computed from the latest windowed metrics):
-    Let:
-      noDrops       := dropRateDPM <= NO_DROP_RATE_DPM
-      noLevelChange := |levelDelta| <= LEVEL_CHANGE_EPS  OR  |levelRateUPM| <= LEVEL_RATE_EPS
-      levelChanging := NOT noLevelChange
-
-    - OCCLUSION:
-        noDrops AND noLevelChange
-    - LEAK (high confidence):
-        noDrops AND levelChanging
-    - NORMAL FLOW:
-        dropRateDPM close to baselineDropRateDPM  AND  levelRateUPM close to baselineLevelRateUPM
-        where "close" is within DROP_RATE_CLOSE_PCT / LEVEL_RATE_CLOSE_PCT.
-    - REDUCED FLOW / SUSPECT LEAK:
-        Anything off-nominal that isn't the above, especially:
-        levelChanging AND (dropRateDPM <= DROP_RATE_LOW_FRAC * baselineDropRateDPM)
-
-  STABILITY REQUIREMENT (sTime):
-    - The LCD only shows a classification after the candidate state has stayed the same
-      for sTime seconds.
-*/
+ * IIIV — Water Level + Drip Rate Classifier (production-intent build)
+ *
+ * Designed for use with medical-grade IV bags. Fuses photoresistor drip-rate
+ * sampling against water-level trend to classify normal flow, occlusion, and
+ * leak states. This is the algorithm described in the project pitch deck.
+ *
+ * Status: bench-tested on prototype hardware during MedTech Hackathon 2026.
+ * NOT clinically validated. Tuning constants (thresholds, window sizes) will
+ * require recalibration for production IV bag geometry.
+ */
 
 #include <Arduino.h>
 #include <LiquidCrystal.h>
 #include <math.h>
 
-// ---------- LCD1602 (Parallel) pins ----------
+// LCD1602 (Parallel) pins
 static const uint8_t LCD_RS = 12;
 static const uint8_t LCD_E  = 11;
 static const uint8_t LCD_D4 = 5;
@@ -73,43 +24,44 @@ static const uint8_t LCD_D7 = 2;
 
 LiquidCrystal lcd(LCD_RS, LCD_E, LCD_D4, LCD_D5, LCD_D6, LCD_D7);
 
-// ---------- Sensor pins ----------
-static const uint8_t PIN_PHOTO = A0;   // photoresistor
-static const uint8_t PIN_LEVEL = A1;   // water level sensor
+// Sensor pins
+static const uint8_t PIN_PHOTO = A0;   
+static const uint8_t PIN_LEVEL = A1;   
 
-// ---------- Timing ----------
+// Timing
 static const uint32_t SAMPLE_MS      = 50;
 static const uint32_t WINDOW_MS      = 5000;   // compute rates every 5s
 static const uint32_t DISPLAY_MS     = 400;
 static const uint32_t CALIBRATION_MS = 4 * WINDOW_MS;  // baseline capture duration
 
-// ---------- "State must persist" ---------- 
-static const uint32_t sTime = 1; // seconds (faster response to rate changes)
+// "State must persist"
+static const uint32_t sTime = 1; 
 static const uint32_t STABLE_TIME_MS = sTime * 1000UL;
 
-// ---------- Photoresistor drop detection tuning ----------
+// Photoresistor drop detection tuning
 static const int      PHOTO_DROP_DELTA = 16;   // lower threshold => detect smaller drip pulses
 static const uint32_t PHOTO_MIN_MS_BETWEEN_DROPS = 120; // allow denser drip events
 static const float    PHOTO_BASELINE_ALPHA = 0.015f; // slower baseline adaptation keeps transient sensitivity
 static const uint8_t  PHOTO_MEDIAN_SAMPLES = 5; // odd number for median filter
 static const float    PHOTO_FILTER_ALPHA = 0.30f; // light EMA after median for jitter reduction
 
-// ---------- Water level filtering/tuning ----------
+// Water level filtering/tuning
 static const float LEVEL_FILTER_ALPHA = 0.07f; // lower alpha for stronger smoothing
 static const uint8_t LEVEL_MEDIAN_SAMPLES = 5; // odd number for median filter
 static const float LEVEL_CHANGE_EPS   = 20.0f;   // delta threshold over WINDOW_MS; change between 20 and 40 depending on what works and what doesn't
 static const float LEVEL_RATE_EPS     = LEVEL_CHANGE_EPS * (60000 / WINDOW_MS);   // near-zero rate threshold (units/min)
+
 // Leak detection can use a tighter threshold than occlusion deadband.
 static const float LEAK_LEVEL_DROP_EPS = 8.0f; // minimum decrease over WINDOW_MS to treat as leak-like
 static const float LEAK_LEVEL_RATE_EPS = LEAK_LEVEL_DROP_EPS * (60000 / WINDOW_MS);
 
-// ---------- Classification thresholds ----------
+// Classification thresholds
 static const float DROP_RATE_CLOSE_PCT  = 0.20f; // within ±20% baseline => close (stricter drip-rate matching)
 static const float LEVEL_RATE_CLOSE_PCT = 0.30f; // within ±30% baseline => close
 static const float DROP_RATE_LOW_FRAC   = 0.80f; // <= 80% of baseline => reduced/suspect
 static const float NO_DROP_RATE_DPM     = 2.0f;  // <2 drops/min => no drops
 
-// ---------- Status ----------
+// Status
 enum class Status {
   CALIBRATING,
   NORMAL_FLOW,
@@ -126,7 +78,7 @@ struct Rates {
   uint32_t dropsInWindow;
 };
 
-// ---------- State ----------
+// State 
 static uint32_t lastSampleMs  = 0;
 static uint32_t lastDisplayMs = 0;
 
@@ -165,7 +117,7 @@ static Status committedStatus = Status::CALIBRATING;
 static Status candidateStatus = Status::CALIBRATING;
 static uint32_t candidateSinceMs = 0;
 
-// ---------- Helpers ----------
+// Helpers
 static float pctDiff(float a, float b) {
   const float denom = (fabsf(b) < 1e-3f) ? 1.0f : fabsf(b);
   return fabsf(a - b) / denom;
@@ -252,7 +204,7 @@ static int readMedianAnalog(uint8_t pin) {
   return samples[LEVEL_MEDIAN_SAMPLES / 2];
 }
 
-// ---------- Drop detection ----------
+// Drop detection
 static void updateDropDetection(int photoRaw, uint32_t nowMs) {
   if (!photoInit) {
     photoBaseline = (float)photoRaw;
@@ -268,9 +220,7 @@ static void updateDropDetection(int photoRaw, uint32_t nowMs) {
             lastDropMs = nowMs;
         }
         dropArmed = false;
-        // ✅ baseline NOT updated — photoRaw is anomalous
     } else {
-        // ✅ only update baseline when sensor is truly idle
         photoBaseline = (1.0f - PHOTO_BASELINE_ALPHA) * photoBaseline
                       + PHOTO_BASELINE_ALPHA * (float)photoRaw;
     }
@@ -282,7 +232,7 @@ static void updateDropDetection(int photoRaw, uint32_t nowMs) {
 
 }
 
-// ---------- Rate computation ----------
+// Rate computation
 static void rollWindowAndCompute(uint32_t nowMs) {
   if (windowStartMs == 0) {
     windowStartMs = nowMs;
@@ -308,13 +258,12 @@ static void rollWindowAndCompute(uint32_t nowMs) {
   }
 }
 
-// ---------- Calibration ----------
+// Calibration
 static void updateCalibration(uint32_t nowMs) {
   if (calibStartMs == 0) calibStartMs = nowMs;
 
   static uint32_t lastAccumulatedWindowStart = 0;
 
-  // Only average after real computed rates exist
   if (haveRates && windowStartMs != 0 && windowStartMs != lastAccumulatedWindowStart) {
     if ((nowMs - calibStartMs) > WINDOW_MS) {
       calibDropRateSum  += currentRates.dropRateDPM;
@@ -328,8 +277,6 @@ static void updateCalibration(uint32_t nowMs) {
     baselineDropRateDPM  = calibDropRateSum  / (float)calibWindowCount;
     baselineLevelRateUPM = calibLevelRateSum / (float)calibWindowCount;
 
-    // Avoid calibration loops: if startup had little/no flow, finish once
-    // using a conservative fallback instead of restarting calibration.
     if (baselineDropRateDPM <= NO_DROP_RATE_DPM) {
       baselineDropRateDPM = NO_DROP_RATE_DPM + 0.1f;
       baselineLevelRateUPM = 0.0f;
@@ -339,7 +286,7 @@ static void updateCalibration(uint32_t nowMs) {
   }
 }
 
-// ---------- Classification (candidate) ----------
+// Classification (candidate)
 static Status classifyCandidate(const Rates& r) {
   if (!baselinesReady || !haveRates) return Status::CALIBRATING;
 
@@ -353,9 +300,7 @@ static Status classifyCandidate(const Rates& r) {
       (fabsf(r.levelRateUPM) <= LEVEL_RATE_EPS);
 
   const bool levelChanging = !noLevelChange;
-
-  // Prioritize no-drops + level decrease as leak, even if decrease is smaller
-  // than the wider occlusion deadband.
+  
   if (noDrops && levelDroppingForLeak) return Status::LEAK;
   if (noLevelChange && noDrops) return Status::OCCLUSION;
   if (levelChanging && noDrops) return Status::LEAK;
@@ -376,7 +321,7 @@ static Status classifyCandidate(const Rates& r) {
   return Status::REDUCED_SUSPECT;
 }
 
-// ---------- Stability gating ----------
+// Stability gating
 static void updateCommittedStatus(Status newCandidate, uint32_t nowMs) {
   if (newCandidate != candidateStatus) {
     candidateStatus = newCandidate;
