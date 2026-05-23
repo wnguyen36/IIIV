@@ -6,7 +6,7 @@
 
 > The name **IIIV** is a play on "IV," with three I's for the three states the system detects.
 
-📊 **[Pitch Deck](iiiv_pitchdeck.pdf)** · 🎥 **[Demo Video](./docs/demo.mp4)**
+📊 **[Pitch Deck](iiiv_pitchdeck.pdf)** · 🎥 **[Demo Video](./docs/demo.mp4)** · 🧰 **[Wiring Diagram](./docs/demo.mp4)** 
 
 ---
 
@@ -76,17 +76,16 @@ Classified state changes stream to a React dashboard that aggregates patient tel
 | Firmware | Arduino, C++ |
 | Sensors | Photoresistor, SL067 water-level sensor |
 | Frontend | React |
-| Communication | [SERIAL / WIFI / BLUETOOTH — fill in what you actually used] |
-| Hardware | [ARDUINO BOARD], breadboard, buzzer, LED, [VALUE]Ω resistor, potentiometer |
+| Hardware | Arduino UNO R3, breadboard, buzzer, LED, [VALUE]Ω resistor, potentiometer |
 
 **Firmware notes:**
-- `WaterLvl_DripRate.ino` is the production-intent build — analyzes drip rate against fluid level for use with medical-grade IV bags.
-- `photoresistor_boolean.ino` is the hackathon prototype — reads water presence as a boolean to accommodate our team's handmade IV bag. Less accurate in a clinical context, but the right call given the sprint constraint.
+- `iiiv_classifier.ino` is the production-intent build — analyzes drip rate against fluid level for use with medical-grade IV bags.
+- `iiiv_classifier_demo.ino` is the hackathon prototype — reads water presence as a boolean to accommodate our team's handmade IV bag. Less accurate in a clinical context, but the right call given the sprint constraint.
 
 ## Setup
 
 1. Clone the repo and open the desired `.ino` file in the Arduino IDE.
-2. Wire components per .
+2. Wire components per (insert wiring diagram hyperlink here).
 3. Select your board and port, then upload.
 4. Start the dashboard: `cd dashboard && npm install && npm run dev`
 
