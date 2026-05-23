@@ -59,7 +59,7 @@ Classified state changes stream to a React dashboard that aggregates patient tel
 | LED (×2) | <$2.50 |
 | Water-level sensor | $1 |
 | Photoresistor | <$1 |
-| Resistors, potentiometer, buzzer, wires | <$3.50 |
+| Resistors, potentiometer, buzzer (not necessary), wires | <$3.50 |
 | **Total** | **~$20** |
 
 | Competitor | Cost |
@@ -76,7 +76,7 @@ Classified state changes stream to a React dashboard that aggregates patient tel
 | Firmware | Arduino, C++ |
 | Sensors | Photoresistor, SL067 water-level sensor |
 | Frontend | React |
-| Hardware | Arduino Uno R3, 16x2 LCD, 10kΩ potentiometer, 10Ω & 220Ω resistors, breadboard, jumper wires, USB-B cable|
+| Hardware | Arduino Uno R3, 16x2 LCD, 10kΩ potentiometer, 10kΩ & 220Ω resistors, breadboard, jumper wires, USB-B cable|
 
 **Firmware notes:**
 - `iiiv_classifier.ino` is the production-intent build — analyzes drip rate against fluid level for use with medical-grade IV bags.
