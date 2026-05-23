@@ -67,7 +67,7 @@ Classified state changes stream to a React dashboard that aggregates patient tel
 | DripAssist (Couperus, 2019) | ~$400 |
 | Monidrop | $500+ |
 
-> *Note: prototype-vs-finished-product comparison. The point isn't apples-to-apples — it's that the failure-mode classification capability is achievable at a fraction of incumbent BOM.*
+> *Note: prototype-vs-finished-product comparison; the main point is that the failure-mode classification capability is achievable at a fraction of incumbent BOM.*
 
 ## Stack
 
@@ -87,7 +87,7 @@ Classified state changes stream to a React dashboard that aggregates patient tel
 1. Clone the repo and open the desired `.ino` file in the Arduino IDE.
 2. Wire components per [wiring diagram](iiiv_wiring.png).
 3. Select your board and port, then upload.
-4. Start the dashboard: `cd dashboard && npm install && npm run dev`
+4. Check out the dashboard demo: `cd dashboard && npm install && npm run dev`
 
 ## Future Work
 
