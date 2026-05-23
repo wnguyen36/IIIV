@@ -6,7 +6,7 @@
 
 > The name **IIIV** is a play on "IV," with three I's for the three states the system detects.
 
-📊 **[Pitch Deck](iiiv_pitchdeck.pdf)** · 🎥 **[Demo Video](./docs/demo.mp4)** · 🧰 **[Wiring Diagram](./docs/demo.mp4)** 
+📊 **[Pitch Deck](iiiv_pitchdeck.pdf)** · 🎥 **[Demo Video](./docs/demo.mp4)** · 🧰 **[Wiring Diagram](iiiv_wiring.png)** 
 
 ---
 
