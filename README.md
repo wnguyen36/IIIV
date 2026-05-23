@@ -79,4 +79,38 @@ Classified state changes stream to a React dashboard that aggregates patient tel
 | Communication | [SERIAL / WIFI / BLUETOOTH — fill in what you actually used] |
 | Hardware | [ARDUINO BOARD], breadboard, buzzer, LED, [VALUE]Ω resistor, potentiometer |
 
-## Repo Structure
+**Firmware notes:**
+- `WaterLvl_DripRate.ino` is the production-intent build — analyzes drip rate against fluid level for use with medical-grade IV bags.
+- `photoresistor_boolean.ino` is the hackathon prototype — reads water presence as a boolean to accommodate our team's handmade IV bag. Less accurate in a clinical context, but the right call given the sprint constraint.
+
+## Setup
+
+1. Clone the repo and open the desired `.ino` file in the Arduino IDE.
+2. Wire components per .
+3. Select your board and port, then upload.
+4. Start the dashboard: `cd dashboard && npm install && npm run dev`
+
+## Future Work
+
+- **Movement ML model** — distinguish patient-movement artifacts from true failure signals (gravity IV pumps are sensitive to motion, which is a known false-alarm driver)
+- **Predictive failure detection** — anticipate occlusion onset from upstream drip-rate trends rather than detecting after the fact
+- **Sensor improvements** — higher-quality and longer-range water-level sensor; photoresistor calibration for varied ambient lighting
+- **Enclosure design** — assembly and casing for clinical-environment durability
+
+## Team Phlegm — MedTech Hackathon 2026
+
+- William Nguyen
+- Ruy Okaji
+- Kristina Siju
+- Shreshta Kallem
+- Krithi Iyer
+
+Won 2nd place in the MedTech Hackathon's Clinical Application Track.
+
+## References
+
+- Couperus, K., Kmiecik, K., & Kang, C. (2019). IV DripAssist: An innovative way to monitor intravenous infusions away from an outlet? *Military Medicine, 184*(Suppl. 1), 322–325.
+- Marsh, N., et al. (2024). Peripheral intravenous catheter infection and failure: A systematic review and meta-analysis. *International Journal of Nursing Studies, 151*, 104673.
+- Sendelbach, S., & Funk, M. (2013). Alarm Fatigue. *AACN Advanced Critical Care, 24*(4), 378–386.
+
+Full reference list in the [pitch deck](./docs/IIIV-pitch-deck.pdf).
