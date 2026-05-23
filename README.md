@@ -6,12 +6,12 @@
 
 > The name **IIIV** is a play on "IV," with three I's for the three states the system detects.
 
-📊 **[Pitch Deck](iiiv_pitchdeck.pdf)** · 🎥 **[Demo Video](./docs/demo.mp4)** · 🧰 **[Wiring Diagram](iiiv_wiring.png)** 
+📊 **[Pitch Deck](iiiv_pitchdeck.pdf)** · 🎥 **[Demo Video](iiiv_demo_cropped.mp4)** · 🧰 **[Wiring Diagram](iiiv_wiring.png)** 
 
 ---
 
 ![IIIV prototype on IV bag](iiiv_demo_pic.png)
-![Nursing dashboard](./docs/dashboard.png)
+![Nursing dashboard](iiiv_dashboard.gif)
 
 ---
 
