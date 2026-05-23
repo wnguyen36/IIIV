@@ -1,12 +1,12 @@
-# IIIV — Multisensor IV Failure-Mode Detection System
+# IIIV — Multisensor Failure-Mode Detection for Gravity-Based Infusion Setups
 
-> Real-time IV infusion monitoring for understaffed clinical environments. Built in 36 hours at MedTech Hackathon 2026.
+> A $20 clip-on monitor that classifies IV failure modes in real time — built in 36 hours at MedTech Hackathon 2026.
 
-**IIIV** is a low-cost IoT attachment that monitors IV bags in real time, classifies infusion failure modes through multi-sensor fusion, and pushes early-warning alerts to a centralized React dashboard for hospital-wide patient telemetry — designed for the low-resource care settings where missed IV complications most often drive patient deterioration.
+**IIIV** is a low-cost, multi-sensor attachment for gravity-based IV systems that detects and classifies three failure modes — **normal flow, occlusion, and leak/disconnection** — through sensor fusion, then streams alerts to a centralized React dashboard for ward-wide monitoring. Designed for understaffed and low-resource clinical environments where existing smart-IV systems are cost-prohibitive.
 
-> The name **IIIV** is a play on "IV," with three I's for the three states the system detects: occlusion, leak, and normal flow.
+> The name **IIIV** is a play on "IV," with three I's for the three states the system detects.
 
-📊 **[Pitch Deck](./docs/IIIV-pitch-deck.pdf)** · 🎥 **[Demo Video](./docs/demo.mp4)** · 🔌 **[Wiring Diagram](./docs/wiring.png)** · 🖥️ **[Dashboard](./dashboard)**
+📊 **[Pitch Deck](./docs/IIIV-pitch-deck.pdf)** · 🎥 **[Demo Video](./docs/demo.mp4)**
 
 ---
 
@@ -17,32 +17,57 @@
 
 ## Highlights
 
-- **End-to-end clinical workflow** — edge device to care-team interface, built in a 36-hour sprint
-- **Multi-sensor fusion classifier** — disambiguates three failure modes that look identical from any single sensor
-- **Low-BOM hardware** — deliberate design constraint for scalability in cost-sensitive deployments
-- **Real-time alerting pipeline** — Arduino firmware streams state changes to a React dashboard for ward-wide monitoring
-- **Full stack, solo-readable** — firmware (C++ / Arduino) and frontend (React) both in this repo
+- **$20 prototype** vs. $400–$500+ for commercial competitors (DripAssist, Monidrop) — ~95% cost reduction
+- **Three-state classification** through sensor fusion, addressing the monitoring gap that single-sensor drip monitors can't close
+- **Clip-on form factor** — works with any standard gravity IV bag, no tubing modifications required
+- **Real-time ward dashboard** — single nurse can monitor every IV bag on a floor from one screen
+- **Offline-capable firmware** — runs directly on microcontroller, no internet dependency for the edge device
+- **End-to-end stack** — Arduino/C++ firmware and React frontend, both in this repo
 
 ## Clinical Context
 
-IV complications — occlusions, leaks, and infiltration — are among the most common categories of preventable inpatient harm. In understaffed or low-resource settings, missed events go unnoticed for long stretches, driving delayed treatment, wasted medication, and patient deterioration. Existing smart-IV systems exist but are cost-prohibitive for the environments that need them most. IIIV targets that gap.
+The deck cites two statistics that frame the problem:
+
+- **36% of IV catheter transfusions fail before therapy completion** (Marsh et al., 2024)
+- **72–99% of clinical alarms are false alarms**, driving alarm fatigue (Sendelbach & Funk, 2013)
+
+These numbers describe the same root failure: gravity IV systems have a monitoring gap. Existing devices like Monidrop detect drop rate only, fire threshold-based alarms, and provide no failure classification or sensor redundancy. A nurse hearing an alarm doesn't know whether the bag is empty, occluded, or leaking — so alarms get ignored, and real complications get missed. IIIV closes that gap by classifying the failure mode itself, so alerts are actionable instead of ambient.
 
 ## Technical Approach
 
 Two sensors feed an Arduino-based classifier:
 
-- **Photoresistor** on the drip chamber → drip rate via light interruption
-- **SL067 water-level sensor** on the bag → fluid volume over time
+- **Water-level sensor (SL067)** on the bag → tracks reservoir depletion trend
+- **Photoresistor** on the drip chamber → tracks flow activity via light interruption
 
 Fusing the two signals disambiguates failure modes that are indistinguishable from either sensor alone:
 
-| State | Drips at chamber | Fluid level dropping |
+| Condition | Water Level Sensor | Photoresistor |
 |---|---|---|
-| Normal flow | ✅ | ✅ |
-| Occlusion | ❌ | ❌ |
-| Leak | ❌ | ✅ |
+| **Normal** | Decreasing | Active |
+| **Occlusion** | Stable | Inactive |
+| **Leak / External** | Decreasing | Inactive |
 
-Classified state changes stream to a React dashboard that aggregates patient telemetry across an entire ward, so a single nurse can monitor every IV bag from one screen.
+Classified state changes stream to a React dashboard that aggregates patient telemetry across an entire ward. Alerts ping the originating room directly, so medical personnel can respond and triage without parsing which IV setup is failing.
+
+## Cost Breakdown
+
+| Component | Cost |
+|---|---|
+| Microcontroller | $10 |
+| Breadboard | <$2 |
+| LED (×2) | <$2.50 |
+| Water-level sensor | $1 |
+| Photoresistor | <$1 |
+| Resistors, potentiometer, buzzer, wires | <$3.50 |
+| **Total** | **~$20** |
+
+| Competitor | Cost |
+|---|---|
+| DripAssist (Couperus, 2019) | ~$400 |
+| Monidrop | $500+ |
+
+> *Note: prototype-vs-finished-product comparison. The point isn't apples-to-apples — it's that the failure-mode classification capability is achievable at a fraction of incumbent BOM.*
 
 ## Stack
 
@@ -52,6 +77,6 @@ Classified state changes stream to a React dashboard that aggregates patient tel
 | Sensors | Photoresistor, SL067 water-level sensor |
 | Frontend | React |
 | Communication | [SERIAL / WIFI / BLUETOOTH — fill in what you actually used] |
-| Hardware | [ARDUINO BOARD — e.g. Arduino Uno R3], breadboard, [VALUE]Ω resistor |
+| Hardware | [ARDUINO BOARD], breadboard, buzzer, LED, [VALUE]Ω resistor, potentiometer |
 
 ## Repo Structure
